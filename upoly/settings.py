@@ -1,9 +1,4 @@
-import os
 from typing import Optional, TypeVar
-
-from dotenv import load_dotenv
-
-load_dotenv()
 
 T = TypeVar("T")
 
@@ -32,6 +27,3 @@ def unwrap(element: Optional[T]) -> T:
         raise ValueError("Got None, Expected a value")
     else:
         return element
-
-
-POLYGON_KEY_ID = unwrap(os.getenv("POLYGON_KEY_ID", ""))

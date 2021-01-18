@@ -25,6 +25,7 @@ pandas = "^1.2.0"
 numpy = "^1.19.5"
 nest-asyncio = "^1.4.3"
 pandas-market-calendars = "^1.6.1"
+aiofiles = "^0.6.0"
 
 [tool.poetry.dev-dependencies]
 ipykernel = "^5.4.3"
@@ -36,6 +37,9 @@ rope = "^0.18.0"
 coverage = "^5.3.1"
 respx = "^0.16.3"
 mypy = "^0.790"
+pytest-watch = "^4.2.0"
+radon = "^4.3.2"
+pytest-cov = "^2.11.0"
 
 
 [build-system]
