@@ -6,6 +6,7 @@ import pandas as pd
 import pytest
 import respx
 from httpx import Response
+from respx.router import MockRouter
 
 from upoly import NY, __version__, async_polygon_aggs
 
@@ -25,7 +26,7 @@ def test_example() -> None:
 
 
 @respx.mock(base_url="https://api.polygon.io/")
-def test_example(respx_mock) -> None:
+def test_basic(respx_mock: MockRouter) -> None:
 
     start = pd.Timestamp("2019-01-01", tz=NY)
     end = pd.Timestamp("2020-01-01", tz=NY)

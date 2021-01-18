@@ -38,6 +38,7 @@ except NameError:
 
 
 async def _produce_polygon_aggs(
+    client: httpx.AsyncClient,
     queue: asyncio.Queue,
     symbol: str,
     timespan: str,
@@ -72,31 +73,31 @@ async def _produce_polygon_aggs(
     assert start < end
 
     POLYGON_KEY_ID = unwrap(os.getenv("POLYGON_KEY_ID"))
-    async with httpx.AsyncClient(http2=True) as client:
-        url = f"https://api.polygon.io/v2/aggs/ticker/{symbol}/range/{interval}/{timespan}/{start}/{end}?unadjusted={unadjusted}&sort=asc&limit={response_limit}&apiKey={POLYGON_KEY_ID}"
-        res = await client.get(url)
-        if res.status_code != 200:
-            ValueError(f"Bad statuscode {res.status_code=};expected 200")
 
-        data: Dict[str, Any] = orjson.loads(res.content)
-        results = data.get("results", None)
-        if results is None:
-            raise ValueError(f"Missing results for range {start=} {end=}")
-        df_chunk = pd.DataFrame(results)
-        if 10_000 >= (num_results := df_chunk.shape[0]) >= 45_000:
-            raise ValueError(f"{num_results=} results, response possibly truncated")
+    url = f"https://api.polygon.io/v2/aggs/ticker/{symbol}/range/{interval}/{timespan}/{start}/{end}?unadjusted={unadjusted}&sort=asc&limit={response_limit}&apiKey={POLYGON_KEY_ID}"
+    res = await client.get(url)
+    if res.status_code != 200:
+        ValueError(f"Bad statuscode {res.status_code=};expected 200")
 
-        if (min_bar_time := df_chunk["t"].min()) < (start - error_threshold):  # type: ignore
-            raise ValueError(
-                f"Result contains bar:{min_bar_time=} that pre-dates start time:{start}\n Difference: {start-min_bar_time} ns"  # type:ignore
-            )
+    data: Dict[str, Any] = orjson.loads(res.content)
+    results = data.get("results", None)
+    if results is None:
+        raise ValueError(f"Missing results for range {start=} {end=}")
+    df_chunk = pd.DataFrame(results)
+    if 10_000 >= (num_results := df_chunk.shape[0]) >= 45_000:
+        raise ValueError(f"{num_results=} results, response possibly truncated")
 
-        if (max_bar_time := df_chunk["t"].max()) > end + error_threshold:  # type: ignore
-            raise ValueError(
-                f"Result contains bar:{max_bar_time=} that post-dates end time:{end} Difference: {max_bar_time-end} ns"  # type: ignore
-            )
+    if (min_bar_time := df_chunk["t"].min()) < (start - error_threshold):  # type: ignore
+        raise ValueError(
+            f"Result contains bar:{min_bar_time=} that pre-dates start time:{start}\n Difference: {start-min_bar_time} ns"  # type:ignore
+        )
 
-        await queue.put(df_chunk)
+    if (max_bar_time := df_chunk["t"].max()) > end + error_threshold:  # type: ignore
+        raise ValueError(
+            f"Result contains bar:{max_bar_time=} that post-dates end time:{end} Difference: {max_bar_time-end} ns"  # type: ignore
+        )
+
+    await queue.put(df_chunk)
 
 
 async def _dispatch_consume_polygon(
@@ -109,14 +110,16 @@ async def _dispatch_consume_polygon(
 
     queue: asyncio.Queue[pd.DataFrame] = asyncio.Queue()
 
+    client = httpx.AsyncClient(http2=True)  # use httpx
     await asyncio.gather(
         *(
             _produce_polygon_aggs(
-                queue, symbol, timespan, interval, _from, to, unadjusted
+                client, queue, symbol, timespan, interval, _from, to, unadjusted
             )
             for _from, to in intervals
         )
     )
+    await client.aclose()
     results: List[pd.DataFrame] = []
     while not queue.empty():
         # print(queue.qsize())
