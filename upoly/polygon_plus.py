@@ -19,7 +19,7 @@ from pandas_market_calendars.exchange_calendar_nyse import NYSEExchangeCalendar
 
 from .settings import unwrap
 
-cachedir = "./joblib_cache"
+cachedir = "./.joblib_cache"
 memory = Memory(cachedir, verbose=0)
 
 NY = pytz.timezone("America/New_York")

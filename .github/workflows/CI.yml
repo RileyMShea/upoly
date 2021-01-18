@@ -21,13 +21,13 @@ jobs:
           poetry-version: ${{ matrix.poetry-version }}
       - name: View poetry --help
         run: poetry --help
-  release:
-    if: github.event_name == 'push'
-    needs: ci
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@master
-      - name: Generate release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx semantic-release
+  # release:
+  #   if: github.event_name == 'push'
+  #   needs: ci
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@master
+  #     - name: Generate release
+  #       env:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #       run: npx semantic-release
