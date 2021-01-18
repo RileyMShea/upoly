@@ -1,26 +1,22 @@
 """This module provides functionality to interact
 with the polygon api asynchonously.
 """
-#%%
-from typing import Any, Dict, Optional, Tuple, List
-import pandas as pd
-from math import ceil
-import pytz
-import httpx
-import uvloop
 import asyncio
-import orjson
 from datetime import datetime
-from settings import (
-    APCA_API_KEY_ID,
-    unwrap,
-)
-import pytz
-from datetime import datetime, time
+from math import ceil
 
-import pandas_market_calendars as mcal
-from pandas_market_calendars.exchange_calendar_nyse import NYSEExchangeCalendar
+#%%
+from typing import Any, Dict, List, Optional, Tuple
+
+import httpx
 import nest_asyncio
+import orjson
+import pandas as pd
+import pandas_market_calendars as mcal
+import pytz
+import uvloop
+from pandas_market_calendars.exchange_calendar_nyse import NYSEExchangeCalendar
+from settings import APCA_API_KEY_ID, unwrap
 
 NY = pytz.timezone("America/New_York")
 
@@ -261,4 +257,3 @@ if __name__ == "__main__":
     data = async_polygon_aggs("AAPL", "minute", 1, start, end)
     print(data.head())
     print(data.info())
-

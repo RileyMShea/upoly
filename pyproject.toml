@@ -3,6 +3,16 @@ name = "upoly"
 version = "0.1.0"
 description = "High performance asyncio REST client for polygon.io"
 authors = ["Riley <rileymshea@gmail.com>"]
+license = "AGPL"
+readme = "readme.md"
+keywords = ["asyncio", "polygon", "polygonio", "python", "client-python", "http2"]
+
+classifiers = [
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "Topic :: Office/Business :: Financial :: Investment",
+]
 
 [tool.poetry.dependencies]
 python = "^3.8"
