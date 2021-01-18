@@ -1,0 +1,31 @@
+[tool.poetry]
+name = "upoly"
+version = "0.1.0"
+description = "High performance asyncio REST client for polygon.io"
+authors = ["Riley <rileymshea@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+joblib = "^1.0.0"
+python-dotenv = "^0.15.0"
+httpx = { extras = ["http2", "brotli"], version = "^0.16.1" }
+uvloop = "^0.14.0"
+orjson = "^3.4.6"
+pandas = "^1.2.0"
+numpy = "^1.19.5"
+nest-asyncio = "^1.4.3"
+pandas-market-calendars = "^1.6.1"
+
+[tool.poetry.dev-dependencies]
+ipykernel = "^5.4.3"
+black = "^20.8b1"
+pre-commit = "^2.9.3"
+pytest = "^6.2.1"
+isort = "^5.7.0"
+rope = "^0.18.0"
+coverage = "^5.3.1"
+
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
