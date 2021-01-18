@@ -26,9 +26,7 @@ NY = pytz.timezone("America/New_York")
 
 
 # Create a calendar
-# xnys = tc.get_calendar("NYSE", open_time=time(9, 30), close_time=time(14, 0))
 nyse: NYSEExchangeCalendar = mcal.get_calendar("NYSE")
-schedule = nyse.schedule("2020-01-01", "2020-01-04")
 
 
 # prevent errors in Jupyter/Ipython; otherwise use enhanced event loop
