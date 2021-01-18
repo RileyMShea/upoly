@@ -3,7 +3,7 @@ with the polygon api asynchonously.
 """
 import asyncio
 import os
-from datetime import datetime
+from datetime import datetime, time
 from math import ceil
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -26,7 +26,7 @@ NY = pytz.timezone("America/New_York")
 
 
 # Create a calendar
-nyse: NYSEExchangeCalendar = mcal.get_calendar("NYSE")
+nyse: NYSEExchangeCalendar = mcal.get_calendar("NYSE", open_time=time(9, 29))
 
 
 # prevent errors in Jupyter/Ipython; otherwise use enhanced event loop
