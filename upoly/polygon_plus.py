@@ -5,7 +5,8 @@ import asyncio
 import os
 from datetime import datetime, time
 from math import ceil
-from typing import Any, Dict, List, Optional, Tuple
+from time import perf_counter
+from typing import List, Tuple
 
 import httpx
 import nest_asyncio
@@ -38,6 +39,8 @@ except NameError:
 
 
 async def _produce_polygon_aggs(
+    polygon_id: str,
+    client: httpx.AsyncClient,
     queue: asyncio.Queue,
     symbol: str,
     timespan: str,
@@ -69,34 +72,31 @@ async def _produce_polygon_aggs(
     start = int(_from.timestamp() * 1_000)  # timestamp in micro seconds
     end = int(to.timestamp() * 1_000)  # timestamp in micro seconds
 
-    assert start < end
+    url = f"https://api.polygon.io/v2/aggs/ticker/{symbol}/range/{interval}/{timespan}/{start}/{end}?unadjusted={unadjusted}&sort=asc&limit={response_limit}&apiKey={polygon_id}"
+    res = await client.get(url)
+    if res.status_code != 200:
+        ValueError(f"Bad statuscode {res.status_code=};expected 200")
 
-    POLYGON_KEY_ID = unwrap(os.getenv("POLYGON_KEY_ID"))
-    async with httpx.AsyncClient(http2=True) as client:
-        url = f"https://api.polygon.io/v2/aggs/ticker/{symbol}/range/{interval}/{timespan}/{start}/{end}?unadjusted={unadjusted}&sort=asc&limit={response_limit}&apiKey={POLYGON_KEY_ID}"
-        res = await client.get(url)
-        if res.status_code != 200:
-            ValueError(f"Bad statuscode {res.status_code=};expected 200")
+    await queue.put(res.content)
+    return
+    # data: Dict[str, Any] = orjson.loads(res.content)
 
-        data: Dict[str, Any] = orjson.loads(res.content)
-        results = data.get("results", None)
-        if results is None:
-            raise ValueError(f"Missing results for range {start=} {end=}")
-        df_chunk = pd.DataFrame(results)
-        if 10_000 >= (num_results := df_chunk.shape[0]) >= 45_000:
-            raise ValueError(f"{num_results=} results, response possibly truncated")
+    # results = data.get("results", None)
+    # if results is None:
+    #     raise ValueError(f"Missing results for range {start=} {end=}")
+    # df_chunk = pd.DataFrame(results)
+    # if 10_000 >= (num_results := df_chunk.shape[0]) >= 45_000:
+    #     raise ValueError(f"{num_results=} results, response possibly truncated")
 
-        if (min_bar_time := df_chunk["t"].min()) < (start - error_threshold):  # type: ignore
-            raise ValueError(
-                f"Result contains bar:{min_bar_time=} that pre-dates start time:{start}\n Difference: {start-min_bar_time} ns"  # type:ignore
-            )
+    # if (min_bar_time := df_chunk["t"].min()) < (start - error_threshold):  # type: ignore
+    #     raise ValueError(
+    #         f"Result contains bar:{min_bar_time=} that pre-dates start time:{start}\n Difference: {start-min_bar_time} ns"  # type:ignore
+    #     )
 
-        if (max_bar_time := df_chunk["t"].max()) > end + error_threshold:  # type: ignore
-            raise ValueError(
-                f"Result contains bar:{max_bar_time=} that post-dates end time:{end} Difference: {max_bar_time-end} ns"  # type: ignore
-            )
-
-        await queue.put(df_chunk)
+    # if (max_bar_time := df_chunk["t"].max()) > end + error_threshold:  # type: ignore
+    #     raise ValueError(
+    #         f"Result contains bar:{max_bar_time=} that post-dates end time:{end} Difference: {max_bar_time-end} ns"  # type: ignore
+    #     )
 
 
 async def _dispatch_consume_polygon(
@@ -105,33 +105,44 @@ async def _dispatch_consume_polygon(
     timespan: str,
     interval: int,
     unadjusted: bool = False,
-) -> List[pd.DataFrame]:
+) -> List[bytes]:
 
-    queue: asyncio.Queue[pd.DataFrame] = asyncio.Queue()
+    queue: asyncio.Queue[bytes] = asyncio.Queue()
 
+    POLYGON_KEY_ID = unwrap(os.getenv("POLYGON_KEY_ID"))
+    client = httpx.AsyncClient(http2=True)  # use httpx
     await asyncio.gather(
         *(
             _produce_polygon_aggs(
-                queue, symbol, timespan, interval, _from, to, unadjusted
+                POLYGON_KEY_ID,
+                client,
+                queue,
+                symbol,
+                timespan,
+                interval,
+                _from,
+                to,
+                unadjusted,
             )
             for _from, to in intervals
         )
     )
-    results: List[pd.DataFrame] = []
+    await client.aclose()
+    results: List[bytes] = []
     while not queue.empty():
-        # print(queue.qsize())
         results.append(await queue.get())
         queue.task_done()
+
     return results
 
 
 # @memory.cache
 def async_polygon_aggs(
     symbol: str,
-    timespan: str,
-    interval: int,
     start: pd.Timestamp,
     end: pd.Timestamp,
+    timespan: str = "minute",
+    interval: int = 1,
     unadjusted: bool = False,
     max_chunk_days: int = 100,
 ) -> pd.DataFrame:
@@ -160,8 +171,6 @@ def async_polygon_aggs(
     >>> df = async_polygon_aggs("AAPL", "minute", 1, start, end)
     """
 
-    results: Optional[List[pd.DataFrame]] = None
-
     if start.tz.zone != "America/New_York" or end.tz.zone != "America/New_York":
         raise ValueError(
             "start and end time must be a NYS, timezone-aware, pandas Timestamp"
@@ -173,16 +182,25 @@ def async_polygon_aggs(
         start=start, end=end, periods=periods
     ).to_tuples()
 
-    results = unwrap(
+    print(f"Retrieving {periods} mini-batches...")
+    network_io_start = perf_counter()
+    raw_results = unwrap(
         asyncio.run(
             _dispatch_consume_polygon(intervals, symbol, timespan, interval, unadjusted)
         )
     )
+    network_io_stop = perf_counter()
+    print(f"Data retrieved in {network_io_stop-network_io_start:.2f} seconds.")
+    print("Performing Transforms...")
+    # results = pd.read_json(raw_results,ignore_index=True)
 
-    if results is None:
-        raise ValueError
-
-    df = pd.concat(results, ignore_index=True)
+    df: pd.DataFrame = pd.concat(
+        (
+            pd.DataFrame(orjson.loads(result_chunk)["results"])
+            for result_chunk in raw_results
+        ),
+        ignore_index=True,
+    )
     df.t = pd.to_datetime(df.t.astype(int), unit="ms", utc=True)
     df.set_index("t", inplace=True)
 
