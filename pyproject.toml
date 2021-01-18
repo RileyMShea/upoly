@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "High performance asyncio REST client for polygon.io"
 authors = ["Riley <rileymshea@gmail.com>"]
 license = "AGPL"
-readme = "readme.md"
+readme = "README.md"
 keywords = ["asyncio", "polygon", "polygonio", "python", "client-python", "http2"]
 
 classifiers = [
