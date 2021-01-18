@@ -28,17 +28,17 @@ def test_example() -> None:
 @respx.mock(base_url="https://api.polygon.io/")
 def test_basic(respx_mock: MockRouter) -> None:
 
-    start = pd.Timestamp("2019-01-01", tz=NY)
-    end = pd.Timestamp("2020-01-01", tz=NY)
+    start = pd.Timestamp("2020-01-01", tz=NY)
+    end = pd.Timestamp("2020-01-15", tz=NY)
 
     os.environ["POLYGON_KEY_ID"] = "apples"
 
     my_route = respx_mock.get(
-        "v2/aggs/ticker/AAPL/range/1/minute/1546318800000/1554202800000?unadjusted=False&sort=asc&limit=50000&apiKey=apples"
+        "v2/aggs/ticker/AAPL/range/1/minute/1577854800000/1579064400000?unadjusted=False&sort=asc&limit=50000&apiKey=apples"
     ).mock(return_value=Response(204))
 
     with pytest.raises(orjson.JSONDecodeError):
-        data = async_polygon_aggs("AAPL", "minute", 1, start, end)
+        data = async_polygon_aggs("AAPL", start, end)
 
     # assert my_route.called
     # assert response.status_code == 204
