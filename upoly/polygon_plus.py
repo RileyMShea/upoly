@@ -66,7 +66,7 @@ async def _produce_polygon_aggs(
     assert start < end
 
     async with httpx.AsyncClient(http2=True) as client:
-        url = f"https://api.polygon.io/v2/aggs/ticker/{symbol}/range/{interval}/{timespan}/{start}/{end}?unadjusted={unadjusted}&sort=asc&limit=50000&apiKey={APCA_API_KEY_ID}"
+        url = f"https://api.polygon.io/v2/aggs/ticker/{symbol}/range/{interval}/{timespan}/{start}/{end}?unadjusted={unadjusted}&sort=asc&limit=50000&apiKey={POLYGON_KEY_ID}"
         res = await client.get(url)
         if res.status_code != 200:
             ValueError(f"Bad statuscode {res.status_code=};expected 200")
