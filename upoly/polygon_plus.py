@@ -70,6 +70,7 @@ async def _produce_polygon_aggs(
 
     assert start < end
 
+    POLYGON_KEY_ID = unwrap(os.getenv("POLYGON_KEY_ID"))
     async with httpx.AsyncClient(http2=True) as client:
         url = f"https://api.polygon.io/v2/aggs/ticker/{symbol}/range/{interval}/{timespan}/{start}/{end}?unadjusted={unadjusted}&sort=asc&limit=50000&apiKey={POLYGON_KEY_ID}"
         res = await client.get(url)
@@ -157,8 +158,6 @@ def async_polygon_aggs(
 
     >>> df = async_polygon_aggs("AAPL", "minute", 1, start, end)
     """
-
-    POLYGON_KEY_ID = unwrap(os.getenv("POLYGON_KEY_ID"))
 
     results: Optional[List[pd.DataFrame]] = None
 
