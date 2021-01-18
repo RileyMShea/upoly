@@ -34,4 +34,4 @@ def unwrap(element: Optional[T]) -> T:
         return element
 
 
-POLYGON_KEY_ID = unwrap(os.getenv("POLYGON_KEY_ID"))
+POLYGON_KEY_ID = unwrap(os.getenv("POLYGON_KEY_ID", ""))
