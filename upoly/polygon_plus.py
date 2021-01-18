@@ -2,6 +2,7 @@
 with the polygon api asynchonously.
 """
 import asyncio
+import os
 from datetime import datetime
 from math import ceil
 from typing import Any, Dict, List, Optional, Tuple
@@ -13,9 +14,13 @@ import pandas as pd
 import pandas_market_calendars as mcal
 import pytz
 import uvloop
+from joblib import Memory
 from pandas_market_calendars.exchange_calendar_nyse import NYSEExchangeCalendar
 
-from .settings import POLYGON_KEY_ID, unwrap
+from .settings import unwrap
+
+cachedir = "./joblib_cache"
+memory = Memory(cachedir, verbose=0)
 
 NY = pytz.timezone("America/New_York")
 
@@ -118,6 +123,7 @@ async def _dispatch_consume_polygon(
     return results
 
 
+@memory.cache
 def async_polygon_aggs(
     symbol: str,
     timespan: str,
@@ -151,6 +157,8 @@ def async_polygon_aggs(
 
     >>> df = async_polygon_aggs("AAPL", "minute", 1, start, end)
     """
+
+    POLYGON_KEY_ID = unwrap(os.getenv("POLYGON_KEY_ID"))
 
     results: Optional[List[pd.DataFrame]] = None
 
