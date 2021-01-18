@@ -4,8 +4,6 @@ with the polygon api asynchonously.
 import asyncio
 from datetime import datetime
 from math import ceil
-
-#%%
 from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
@@ -16,7 +14,8 @@ import pandas_market_calendars as mcal
 import pytz
 import uvloop
 from pandas_market_calendars.exchange_calendar_nyse import NYSEExchangeCalendar
-from settings import APCA_API_KEY_ID, unwrap
+
+from .settings import POLYGON_KEY_ID, unwrap
 
 NY = pytz.timezone("America/New_York")
 
@@ -25,17 +24,9 @@ NY = pytz.timezone("America/New_York")
 # xnys = tc.get_calendar("NYSE", open_time=time(9, 30), close_time=time(14, 0))
 nyse: NYSEExchangeCalendar = mcal.get_calendar("NYSE")
 schedule = nyse.schedule("2020-01-01", "2020-01-04")
-mcal.date_range(schedule, "1min")
 
 
-# print("open, close: %s, %s" % (xnys.open_time, xnys.close_time))
-
-# schedule_nyse = xnys.schedule("2015-12-20", "2016-01-06")
-# schedule_nyse
-
-#%%
-
-
+# prevent errors in Jupyter/Ipython; otherwise use enhanced event loop
 try:
     get_ipython()  # type: ignore
     nest_asyncio.apply()
