@@ -13,6 +13,9 @@
 ![GitHub](https://img.shields.io/github/license/RileyMShea/upoly)
 ![PyPI](https://img.shields.io/pypi/v/upoly)
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/upoly)
+<a href="https://codecov.io/gh/RileyMShea/upoly" target="_blank">
+<img src="https://img.shields.io/codecov/c/github/RileyMShea/upoly?color=%2334D058" alt="Coverage">
+</a>
 
 An Asyncio based, high performance, REST client libary for interacting
 with the polygon REST api.
