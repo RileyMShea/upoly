@@ -1,4 +1,9 @@
-# upoly
+# Upoly
+
+<p align="center">
+    <img src="upoly.png" alt="upoly">
+</p>
+<!-- ![upoly logo](upoly.png) -->
 
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Dependency Status](https://img.shields.io/librariesio/github/RileyMShea/upoly)]("")

@@ -145,6 +145,8 @@ def async_polygon_aggs(
     interval: int = 1,
     unadjusted: bool = False,
     max_chunk_days: int = 100,
+    stats: bool = False,
+    debug_mode: bool = False,
 ) -> pd.DataFrame:
     """Produce calendar formatted pandas dataframe for a stock.
 
@@ -171,106 +173,128 @@ def async_polygon_aggs(
     >>> df = async_polygon_aggs("AAPL", "minute", 1, start, end)
     """
 
-    if start.tz.zone != "America/New_York" or end.tz.zone != "America/New_York":
-        raise ValueError(
-            "start and end time must be a NYS, timezone-aware, pandas Timestamp"
+    def wrapper() -> pd.DataFrame:
+        if start.tz.zone != "America/New_York" or end.tz.zone != "America/New_York":
+            raise ValueError(
+                "start and end time must be a NYS, timezone-aware, pandas Timestamp"
+            )
+
+        periods = ceil((end - start).days / max_chunk_days)
+
+        intervals: Tuple[pd.Timestamp, pd.Timestamp] = pd.interval_range(
+            start=start, end=end, periods=periods
+        ).to_tuples()
+
+        print(f"Retrieving {periods} mini-batches...")
+        network_io_start = perf_counter()
+        raw_results = unwrap(
+            asyncio.run(
+                _dispatch_consume_polygon(
+                    intervals, symbol, timespan, interval, unadjusted
+                )
+            )
+        )
+        network_io_stop = perf_counter()
+        print(f"Data retrieved in {network_io_stop-network_io_start:.2f} seconds.")
+        print("Performing Transforms...")
+        # results = pd.read_json(raw_results,ignore_index=True)
+
+        df: pd.DataFrame = pd.concat(
+            (
+                pd.DataFrame(orjson.loads(result_chunk)["results"])
+                for result_chunk in raw_results
+            ),
+            ignore_index=True,
+        )
+        df.t = pd.to_datetime(df.t.astype(int), unit="ms", utc=True)
+        df.set_index("t", inplace=True)
+
+        schedule = nyse.schedule(start, end)
+        valid_minutes = mcal.date_range(schedule, "1min")
+
+        expected_sessions = schedule.shape[0]
+
+        actual_sessions = df.groupby(df.index.date).count().shape[0]  # type:ignore
+
+        print(
+            f"{expected_sessions=}\t{actual_sessions=}\tpct_diff: {(actual_sessions/expected_sessions)-1.:+.2%}"
         )
 
-    periods = ceil((end - start).days / max_chunk_days)
+        expected_minutes = valid_minutes.shape[0]
 
-    intervals: Tuple[pd.Timestamp, pd.Timestamp] = pd.interval_range(
-        start=start, end=end, periods=periods
-    ).to_tuples()
+        actual_minutes = df.shape[0]
 
-    print(f"Retrieving {periods} mini-batches...")
-    network_io_start = perf_counter()
-    raw_results = unwrap(
-        asyncio.run(
-            _dispatch_consume_polygon(intervals, symbol, timespan, interval, unadjusted)
+        print(
+            f"{expected_minutes=}\t{actual_minutes=}\tpct_diff: {(actual_minutes/expected_minutes)-1.:+.2%}"
         )
-    )
-    network_io_stop = perf_counter()
-    print(f"Data retrieved in {network_io_stop-network_io_start:.2f} seconds.")
-    print("Performing Transforms...")
-    # results = pd.read_json(raw_results,ignore_index=True)
 
-    df: pd.DataFrame = pd.concat(
-        (
-            pd.DataFrame(orjson.loads(result_chunk)["results"])
-            for result_chunk in raw_results
-        ),
-        ignore_index=True,
-    )
-    df.t = pd.to_datetime(df.t.astype(int), unit="ms", utc=True)
-    df.set_index("t", inplace=True)
+        if (duplicated_indice_count := df.index.duplicated().sum()) > 0:
+            print("\n")
+            print(f"Found the following duplicated indexes:")
+            print(df[df.index.duplicated(keep=False)].sort_index()["vw"])  # type: ignore
+            print(
+                f"Dropping {duplicated_indice_count} row(s) w/ duplicate Datetimeindex "
+            )
+            df = df[~df.index.duplicated()]
 
-    schedule = nyse.schedule(start, end)
-    valid_minutes = mcal.date_range(schedule, "1min")
+            df = df.reindex(valid_minutes)
+            print("Reindexing...")
 
-    expected_sessions = schedule.shape[0]
+        print("After Reindexing by trading calender:")
 
-    actual_sessions = df.groupby(df.index.date).count().shape[0]  # type:ignore
+        actual_sessions = df.groupby(df.index.date).count().shape[0]  # type:ignore
+        actual_minutes = df.shape[0]
 
-    print(
-        f"{expected_sessions=}\t{actual_sessions=}\tpct_diff: {(actual_sessions/expected_sessions)-1.:.2%}"
-    )
+        print(f"{expected_sessions = }\t{actual_sessions = }")
+        print(f"{expected_minutes = }\t{actual_minutes = }")
 
-    expected_minutes = valid_minutes.shape[0]
+        pct_minutes_not_null = df.dropna().shape[0] / actual_minutes
+        print(f"{pct_minutes_not_null = :.3%}")
 
-    actual_minutes = df.shape[0]
+        # Rename polygon json keys to canonical pandas headers
+        df = df.rename(
+            columns={  # type: ignore
+                "v": "volume",
+                "vw": "volwavg",
+                "o": "open",
+                "c": "close",
+                "h": "high",
+                "l": "low",
+                "t": "date",
+                "n": "trades",
+            }
+        )  # type:ignore
 
-    print(
-        f"{expected_minutes=}\t{actual_minutes=}\tpct_diff: {(actual_minutes/expected_minutes)-1.:.2%}"
-    )
+        # Converting UTC-aware timestamps to NY-naive
+        df.index = df.index.tz_convert(NY).tz_localize(None)  # type:ignore
 
-    if (duplicated_indice_count := df.index.duplicated().sum()) > 0:
-        print("\n")
-        print(f"Found the following duplicated indexes:")
-        print(df[df.index.duplicated(keep=False)].sort_index()["vw"])  # type: ignore
-        print(f"Dropping {duplicated_indice_count} row(s) w/ duplicate Datetimeindex ")
-        df = df[~df.index.duplicated()]
+        # Let pandas infer optimal column dtypes; converts trades,volume float->Int64
+        df = df.convert_dtypes()
 
-        df = df.reindex(valid_minutes)
-        print("Reindexing...")
+        # Reorder columns so that ohlcv comes first
+        df = df[["open", "high", "low", "close", "volume", "volwavg", "trades"]]
+        df.index.name = "time"
 
-    print("After Reindexing by trading calender:")
+        first_index = df.index.min()
+        last_index = df.index.max()
 
-    actual_sessions = df.groupby(df.index.date).count().shape[0]  # type:ignore
-    actual_minutes = df.shape[0]
+        print(f"{first_index = } {last_index = }")
 
-    print(f"{expected_sessions=} {actual_sessions=}")
-    print(f"{expected_minutes=} {actual_minutes=}")
+        return df
 
-    # Rename polygon json keys to canonical pandas headers
-    df = df.rename(
-        columns={  # type: ignore
-            "v": "volume",
-            "vw": "volwavg",
-            "o": "open",
-            "c": "close",
-            "h": "high",
-            "l": "low",
-            "t": "date",
-            "n": "trades",
-        }
-    )  # type:ignore
-
-    # Converting UTC-aware timestamps to NY-naive
-    df.index = df.index.tz_convert(NY).tz_localize(None)  # type:ignore
-
-    # Let pandas infer optimal column dtypes; converts trades,volume float->Int64
-    df = df.convert_dtypes()
-
-    # Reorder columns so that ohlcv comes first
-    df = df[["open", "high", "low", "close", "volume", "volwavg", "trades"]]
-
-    return df
+    if debug_mode == True:
+        return wrapper()
+    wrapped = memory.cache(wrapper)()
+    if isinstance(wrapped, pd.DataFrame):
+        return wrapped
+    else:
+        raise ValueError(f"Expected Dataframe return; Got: {type(wrapped)}")
 
 
 if __name__ == "__main__":
     start = pd.Timestamp("2019-01-01", tz=NY)
     end = pd.Timestamp("2020-01-01", tz=NY)
 
-    data = async_polygon_aggs("AAPL", "minute", 1, start, end)
+    data = async_polygon_aggs("AAPL", start, end)
     print(data.head())
     print(data.info())
