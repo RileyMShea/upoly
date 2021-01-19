@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "upoly"
-version = "0.1.5"
+version = "0.1.7"
 description = "High performance asyncio REST client for polygon.io"
 authors = ["Riley <rileymshea@gmail.com>"]
 license = "AGPL"
