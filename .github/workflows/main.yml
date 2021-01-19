@@ -65,8 +65,7 @@ jobs:
       - name: Run pytest
         shell: bash
         run: |
-          python -m poetry run python -m pytest -v tests
-          python -m poetry run python -m --cov=upoly --cov-report=xml
+          python -m poetry run python -m pytest --cov=upoly tests/ --cov-report=xml
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v1
         with:
