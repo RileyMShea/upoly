@@ -84,12 +84,10 @@ jobs:
 
       - name: Build project for distribution
         run: |
-          source $HOME/.poetry/env
-          poetry run poetry build
+          python -m poetry run poetry build
 
       - name: Publish to PyPI
         env:
           POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_TOKEN }}
         run: |
-          source $HOME/.poetry/env
-          poetry run poetry publish
+          python -m poetry run poetry publish
