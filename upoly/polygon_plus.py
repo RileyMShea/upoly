@@ -10,6 +10,7 @@ from typing import List, Tuple
 
 import httpx
 import nest_asyncio
+import numpy as np
 import orjson
 import pandas as pd
 import pandas_market_calendars as mcal
@@ -270,6 +271,7 @@ def async_polygon_aggs(
 
         # Let pandas infer optimal column dtypes; converts trades,volume float->Int64
         df = df.convert_dtypes()
+        df = df.astype(np.float64)
 
         # Reorder columns so that ohlcv comes first
         df = df[["open", "high", "low", "close", "volume", "volwavg", "trades"]]
