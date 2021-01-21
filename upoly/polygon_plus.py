@@ -174,7 +174,17 @@ def async_polygon_aggs(
     >>> df = async_polygon_aggs("AAPL", "minute", 1, start, end)
     """
 
-    def wrapper() -> pd.DataFrame:
+    def wrapper(
+        symbol: str,
+        start: pd.Timestamp,
+        end: pd.Timestamp,
+        timespan: str = "minute",
+        interval: int = 1,
+        unadjusted: bool = False,
+        max_chunk_days: int = 100,
+        stats: bool = False,
+        debug_mode: bool = False,
+    ) -> pd.DataFrame:
         if start.tz.zone != "America/New_York" or end.tz.zone != "America/New_York":
             raise ValueError(
                 "start and end time must be a NYS, timezone-aware, pandas Timestamp"
@@ -285,8 +295,28 @@ def async_polygon_aggs(
         return df
 
     if debug_mode == True:
-        return wrapper()
-    wrapped = memory.cache(wrapper)()
+        return wrapper(
+            symbol,
+            start,
+            end,
+            timespan,
+            interval,
+            unadjusted,
+            max_chunk_days,
+            stats,
+            debug_mode,
+        )
+    wrapped = memory.cache(wrapper)(
+        symbol,
+        start,
+        end,
+        timespan,
+        interval,
+        unadjusted,
+        max_chunk_days,
+        stats,
+        debug_mode,
+    )
     if isinstance(wrapped, pd.DataFrame):
         return wrapped
     else:
@@ -298,5 +328,6 @@ if __name__ == "__main__":
     end = pd.Timestamp("2020-01-01", tz=NY)
 
     data = async_polygon_aggs("AAPL", start, end)
+
     print(data.head())
     print(data.info())
