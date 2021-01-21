@@ -212,7 +212,7 @@ def async_polygon_aggs(
 
         df: pd.DataFrame = pd.concat(
             (
-                pd.DataFrame(orjson.loads(result_chunk)["results"])
+                pd.DataFrame(orjson.loads(result_chunk).get("results", None))
                 for result_chunk in raw_results
             ),
             ignore_index=True,

@@ -9,11 +9,11 @@ load_dotenv()
 
 NY = pytz.timezone("America/New_York")
 
-start = pd.Timestamp("2018-01-01", tz=NY)
+start = pd.Timestamp("2015-01-01", tz=NY)
 end = pd.Timestamp("2020-01-01", tz=NY)
 #%%
 # asset_names = ["AAPL", "TSLA", "MSFT"]
-aapl = async_polygon_aggs("MSFT", start, end)
+aapl = async_polygon_aggs("SHOP", start, end)
 #%%
 tsla = async_polygon_aggs("TSLA", start, end)
 
