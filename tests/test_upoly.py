@@ -12,7 +12,7 @@ from upoly import NY, __version__, async_polygon_aggs
 
 
 def test_version() -> None:
-    assert __version__ == "0.1.14"
+    assert __version__ == "0.1.15"
 
 
 @respx.mock

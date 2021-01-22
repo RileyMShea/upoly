@@ -6,7 +6,7 @@ import os
 from datetime import datetime, time
 from math import ceil
 from time import perf_counter
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import httpx
 import nest_asyncio
@@ -148,7 +148,8 @@ def async_polygon_aggs(
     max_chunk_days: int = 100,
     stats: bool = False,
     debug_mode: bool = False,
-) -> pd.DataFrame:
+    paucity_threshold: float = 0.70,
+) -> Optional[pd.DataFrame]:
     """Produce calendar formatted pandas dataframe for a stock.
 
     Args:
@@ -184,7 +185,8 @@ def async_polygon_aggs(
         max_chunk_days: int = 100,
         stats: bool = False,
         debug_mode: bool = False,
-    ) -> pd.DataFrame:
+        paucity_threshold: float = 0.70,
+    ) -> Optional[pd.DataFrame]:
         if start.tz.zone != "America/New_York" or end.tz.zone != "America/New_York":
             raise ValueError(
                 "start and end time must be a NYS, timezone-aware, pandas Timestamp"
@@ -196,8 +198,10 @@ def async_polygon_aggs(
             start=start, end=end, periods=periods
         ).to_tuples()
 
-        print(f"Retrieving {periods} mini-batches...")
+        print(f"Retrieving {periods} mini-batches for {symbol}...")
+
         network_io_start = perf_counter()
+
         raw_results = unwrap(
             asyncio.run(
                 _dispatch_consume_polygon(
@@ -217,11 +221,20 @@ def async_polygon_aggs(
             ),
             ignore_index=True,
         )
-        df.t = pd.to_datetime(df.t.astype(int), unit="ms", utc=True)
-        df.set_index("t", inplace=True)
 
         schedule = nyse.schedule(start, end)
         valid_minutes = mcal.date_range(schedule, "1min")
+        columns = ["open", "high", "low", "close", "volume", "volwavg", "trades"]
+
+        if df is None or df.empty:
+            print(f"No results for {symbol}.")
+            return None
+            # valid_minutes.name = "time"
+            # return pd.DataFrame(
+            #     columns=columns, index=valid_minutes.tz_convert(NY).tz_localize(None)
+            # )
+        df.t = pd.to_datetime(df.t.astype(int), unit="ms", utc=True)
+        df.set_index("t", inplace=True)
 
         expected_sessions = schedule.shape[0]
 
@@ -249,6 +262,7 @@ def async_polygon_aggs(
             df = df[~df.index.duplicated()]
 
             df = df.reindex(valid_minutes)
+
             print("Reindexing...")
 
         print("After Reindexing by trading calender:")
@@ -259,8 +273,13 @@ def async_polygon_aggs(
         print(f"{expected_sessions = }\t{actual_sessions = }")
         print(f"{expected_minutes = }\t{actual_minutes = }")
 
-        pct_minutes_not_null = df.dropna().shape[0] / actual_minutes
+        pct_minutes_not_null = actual_minutes / expected_minutes
+
         print(f"{pct_minutes_not_null = :.3%}")
+
+        if pct_minutes_not_null < paucity_threshold:
+            print(f"{symbol} below threshold: {paucity_threshold}")
+            return None
 
         # Rename polygon json keys to canonical pandas headers
         df = df.rename(
@@ -319,6 +338,8 @@ def async_polygon_aggs(
     )
     if isinstance(wrapped, pd.DataFrame):
         return wrapped
+    elif wrapped is None:
+        return None
     else:
         raise ValueError(f"Expected Dataframe return; Got: {type(wrapped)}")
 
