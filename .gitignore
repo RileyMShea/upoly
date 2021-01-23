@@ -141,3 +141,6 @@ cython_debug/
 # joblib artifacts
 joblib_cache/
 .joblib_cache/
+
+.vscode/
+.vscode/settings.json
