@@ -23,11 +23,11 @@ jobs:
     runs-on: ${{ matrix.os }}-latest
     env:
       OS: ${{ matrix.os }}
-      PYTHON: '3.8'
+      PYTHON: '${{ matrix.python-version }}'
     strategy:
       matrix:
         os: [Ubuntu]
-        python-version: [3.8]
+        python-version: [3.8,3.9]
         poetry-version: [1.1.2]
 
     steps:
