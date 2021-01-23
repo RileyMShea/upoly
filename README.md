@@ -6,6 +6,7 @@
 <!-- ![upoly logo](upoly.png) -->
 
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
 [![Dependency Status](https://img.shields.io/librariesio/github/RileyMShea/upoly)]("")
 ![GitHub Workflow Status](https://img.shields.io/github/workflow/status/RileyMShea/upoly/Tests)
 ![Lines of code](https://img.shields.io/tokei/lines/github/RileyMShea/upoly)
@@ -31,9 +32,10 @@ exceeds 50,000 trade bars.
 ## Installation
 
 This library makes use of some high performance packages written in `C`/`Rust`
-(uvloop, orjson) so it may require `python-dev` on Ubuntu or similar on
-other OS's. It is compatible with Python 3.8.x and aims to be compatible with
-all future CPython versions moving forward.
+(uvloop, orjson) so it may require `sudo apt install python3-dev` on Ubuntu or similar on
+other OS's. It is currently only compatible with Python 3.8.x but aims to be
+compatible with 3.9 once it's dependendencies support 3.9
+and all future CPython versions moving forward.
 
 pip/poetry w/ venv
 
@@ -64,6 +66,16 @@ like so:
 export POLYGON_KEY_ID=REPACEWITHPOLYGONORALPACAKEYHERE
 ```
 
+or adding to your shell startup script, either `.zshrc` or `.bashrc` to have
+it be globally available to all projects.
+
+```bash
+#/home/youruseraccount/.bashrc
+...
+export POLYGON_KEY_ID=REPACEWITHPOLYGONORALPACAKEYHERE
+...
+```
+
 ```python
 # ./yourscript.py
 import pytz
@@ -86,7 +98,7 @@ NY = pytz.timezone("America/New_York")
 start = pd.Timestamp("2015-01-01", tz=NY)
 end = pd.Timestamp("2020-01-01", tz=NY)
 
-df = async_polygon_aggs("AAPL", "minute", 1, start, end)
+df = async_polygon_aggs("AAPL", start, end)
 ```
 
 ## TODO
