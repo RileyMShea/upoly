@@ -144,3 +144,5 @@ joblib_cache/
 
 .vscode/
 .vscode/settings.json
+
+!*.json.zip
