@@ -145,4 +145,11 @@ joblib_cache/
 .vscode/
 .vscode/settings.json
 
+*.parquet
+*.pkl
+
 !*.json.zip
+
+*.dirlock
+*.lock
+.virtual_documents/

@@ -23,6 +23,7 @@ import uvloop
 from joblib import Memory
 from pandas_market_calendars.exchange_calendar_nyse import NYSEExchangeCalendar
 
+from .constants import STAMP_TO_MICRO_FACTOR
 from .models import PolyAggResponse
 from .settings import unwrap
 
@@ -47,7 +48,7 @@ except NameError:
 async def _produce_polygon_aggs(
     polygon_id: str,
     client: httpx.AsyncClient,
-    queue: asyncio.Queue,
+    queue: asyncio.Queue,  # type:ignore
     symbol: str,
     timespan: Literal["minute", "hour", "day"],
     interval: int,
@@ -56,11 +57,13 @@ async def _produce_polygon_aggs(
     unadjusted: bool = False,
     error_threshold: int = 1_000_000,
     response_limit: int = 50_000,
-    debug_mode: bool = True,
+    debug_mode: bool = False,
 ) -> None:
     """Produce a chunk of polygon results and put in asyncio que.
 
     Args:
+        :param:polygon_id (str): Polygon API key
+        :param:client (httpx.AsyncClient): An open http2 client session
         :param:queue (asyncio.Queue): special collection to put results asynchonously
         :param:symbol (str): the stock symbol
         :param:timespan (str): unit of time, "minute", "hour", "day"
@@ -74,10 +77,9 @@ async def _produce_polygon_aggs(
         can be out-of-bounds before considering invalid.  defaults to 1_000_000
         (0.001 seconds)
     """
-
-    # print(f"input:{_from=} {to}")
-    start = int(_from.timestamp() * 1_000)  # timestamp in micro seconds
-    end = int(to.timestamp() * 1_000)  # timestamp in micro seconds
+    # timestamp in micro seconds
+    start = int(_from.timestamp() * STAMP_TO_MICRO_FACTOR)
+    end = int(to.timestamp() * STAMP_TO_MICRO_FACTOR)
 
     url = f"https://api.polygon.io/v2/aggs/ticker/{symbol}/range/{interval}/{timespan}/{start}/{end}?unadjusted={unadjusted}&sort=asc&limit={response_limit}&apiKey={polygon_id}"
     res = await client.get(url)
@@ -86,12 +88,12 @@ async def _produce_polygon_aggs(
 
     await queue.put(res.content)
 
-    if debug_mode:
-        async with aiofiles.open(
-            f"./tests/fixtures/{symbol}-{start}-{end}.json.zip", "wb"
-        ) as f:
-            await f.write(brotli.compress(orjson.dumps(orjson.loads(res.content))))
-        return res.content
+    # if debug_mode:
+    #     async with aiofiles.open(
+    #         f"./tests/fixtures/{symbol}-{start}-{end}.json.zip", "wb"
+    #     ) as f:
+    #         await f.write(brotli.compress(orjson.dumps(orjson.loads(res.content))))
+    #     return res.content  # type: ignore
 
 
 async def _dispatch_consume_polygon(
@@ -141,13 +143,14 @@ def async_polygon_aggs(
     symbol: str,
     start: pd.Timestamp,
     end: pd.Timestamp,
+    /,
     timespan: Literal["minute", "hour", "day"] = "minute",
     interval: int = 1,
     unadjusted: bool = False,
     max_chunk_days: int = 100,
-    stats: bool = False,
     debug_mode: bool = False,
     paucity_threshold: float = 0.70,
+    df_dtype: Literal["np.float64", "np.float32"] = "np.float64",
 ) -> Optional[pd.DataFrame]:
     """Produce calendar formatted pandas dataframe for a stock.
 
@@ -159,6 +162,10 @@ def async_polygon_aggs(
         :param: interval (int): aggregate by this amount; i.e. 15 minutes
         :param: unadjusted (bool, optional): whether bars should be adjusted for splits. Defaults to False.
         :param: max_chunk_days (int, optional): Limit amount of days to retrieve per request to prevent truncated results. Defaults to 100.
+        :param: paucity_threshold (float): Minimum ratio of response_records-to-expected_records
+        before triggering an exception.  Defaults to 0.7
+        :param: df_dtype: (Literal["np.float64", "np.float32"]): set the
+        dtype for ,
 
 
     Returns:
@@ -174,18 +181,22 @@ def async_polygon_aggs(
     >>> df = async_polygon_aggs("AAPL", start, end)
     """
 
-    def wrapper(
+    def inner_wrapper(
         symbol: str,
         start: pd.Timestamp,
         end: pd.Timestamp,
+        /,
         timespan: Literal["minute", "hour", "day"] = "minute",
         interval: int = 1,
         unadjusted: bool = False,
         max_chunk_days: int = 100,
-        stats: bool = False,
         debug_mode: bool = False,
         paucity_threshold: float = 0.70,
+        df_dtype: Literal["np.float64", "np.float32"] = "np.float64",
     ) -> Optional[pd.DataFrame]:
+        """This duplicated function of the outer signature exists b/c joblib's
+        implementation of it's memory.cache decorator breaks editor intellisense."""
+
         if start.tz.zone != "America/New_York" or end.tz.zone != "America/New_York":
             raise ValueError(
                 "start and end time must be a NYS, timezone-aware, pandas Timestamp"
@@ -211,7 +222,6 @@ def async_polygon_aggs(
         network_io_stop = perf_counter()
         print(f"Data retrieved in {network_io_stop-network_io_start:.2f} seconds.")
         print("Performing Transforms...")
-        # results = pd.read_json(raw_results,ignore_index=True)
 
         df: pd.DataFrame = pd.concat(
             (
@@ -223,7 +233,6 @@ def async_polygon_aggs(
 
         schedule = nyse.schedule(start, end)
         valid_minutes = mcal.date_range(schedule, "1min")
-        columns = ["open", "high", "low", "close", "volume", "volwavg", "trades"]
 
         if df is None or df.empty:
             print(f"No results for {symbol}.")
@@ -295,8 +304,8 @@ def async_polygon_aggs(
         else:
             raise TypeError
 
-        # Let pandas infer optimal column dtypes; converts trades,volume float->Int64
-        df = df.astype(np.float64)
+        # Force columns to specific type
+        # df = df.astype(np.float64)
 
         # Reorder columns so that ohlcv comes first
         df = df[["open", "high", "low", "close", "volume", "volwavg", "trades"]]
@@ -310,7 +319,7 @@ def async_polygon_aggs(
         return df
 
     if debug_mode:
-        return wrapper(
+        return inner_wrapper(
             symbol,
             start,
             end,
@@ -318,10 +327,11 @@ def async_polygon_aggs(
             interval,
             unadjusted,
             max_chunk_days,
-            stats,
             debug_mode,
+            paucity_threshold,
+            df_dtype,
         )
-    wrapped = memory.cache(wrapper)(
+    wrapped = memory.cache(inner_wrapper)(
         symbol,
         start,
         end,
@@ -329,8 +339,9 @@ def async_polygon_aggs(
         interval,
         unadjusted,
         max_chunk_days,
-        stats,
         debug_mode,
+        paucity_threshold,
+        df_dtype,
     )
     if isinstance(wrapped, pd.DataFrame):
         return wrapped

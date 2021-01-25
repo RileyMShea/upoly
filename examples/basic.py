@@ -1,16 +1,66 @@
 #%%
+import brotli
+import numpy as np
+import orjson
 import pandas as pd
-import pytz
 
 from upoly import NY, async_polygon_aggs
 
-NY = pytz.timezone("America/New_York")
-
-start = pd.Timestamp("2018-01-01", tz=NY)
-end = pd.Timestamp("2020-01-01", tz=NY)
 #%%
-# asset_names = ["AAPL", "TSLA", "MSFT"]
-aapl = async_polygon_aggs("SHOP", start, end, debug_mode=True)
+start = pd.Timestamp("2019-01-01", tz=NY)
+end = pd.Timestamp("2020-01-01", tz=NY)
+aapl = async_polygon_aggs("AAPL", start, end)
+
+#%%
+aapl["volume"] = pd.to_numeric(
+    aapl.volume.fillna(0, downcast="infer"), downcast="unsigned"
+)
+
+aapl["trades"] = pd.to_numeric(
+    aapl.trades.fillna(0, downcast="infer"), downcast="unsigned"
+)
 aapl
 #%%
-tsla = async_polygon_aggs("TSLA", start, end)
+aapl.iloc[:, :4].info()
+
+#%%
+aapl["symbol"] = "AAPL"
+aapl["symbol"] = aapl.symbol.astype("category")
+aapl
+#%%
+aapl.to_parquet("./data", "pyarrow", "brotli", True, ["symbol"])
+#%%
+aapl.open.sort_values()
+#%%
+pd.read_parquet("./data").info()
+
+#%%
+aapl.agg(["min", "max"])
+
+#%%
+b = pd.to_numeric(aapl.trades.dropna(), downcast="unsigned")
+
+
+#%%
+c = b.to_numpy()
+c
+#%%
+np.append(c, np.NaN)
+#%%
+pd.Series([0, 1, np.NaN, 33333.0], dtype=np.float32)
+
+#%%
+# tsla = async_polygon_aggs("TSLA", start, end)
+
+# #%%
+# print(os.getcwd())
+# a = {"a": 1}
+
+# x = brotli.compress(orjson.dumps(a))
+
+# with open("a.json.zip", "wb") as f:
+#     f.write(x)
+
+# with open("a.json.zip", "rb") as f:
+#     res = orjson.loads(brotli.decompress(f.read()))
+# print(res)
