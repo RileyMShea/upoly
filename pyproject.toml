@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "upoly"
-version = "0.1.19"
+version = "0.1.20"
 description = "High performance asyncio REST client for polygon.io"
 authors = ["Riley <rileymshea@gmail.com>"]
 license = "AGPL"
@@ -11,6 +11,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Operating System :: OS Independent",
     "Topic :: Office/Business :: Financial :: Investment",
+
     "Programming Language :: Python :: 3",
     "Programming Language :: Python",
     "Topic :: Software Development :: Libraries :: Python Modules",
@@ -20,7 +21,6 @@ classifiers = [
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.8",
-    "License :: OSI Approved :: AGPL License",
 ]
 
 [tool.poetry.dependencies]
