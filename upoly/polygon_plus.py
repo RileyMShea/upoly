@@ -5,16 +5,13 @@ from __future__ import annotations
 
 import asyncio
 import os
-from datetime import datetime, time
+from datetime import datetime, timedelta
 from math import ceil
 from time import perf_counter
 from typing import Iterator, List, Literal, Optional, Tuple
 
-import aiofiles
-import brotli
 import httpx
 import nest_asyncio
-import numpy as np
 import orjson
 import pandas as pd
 import pandas_market_calendars as mcal
@@ -31,10 +28,6 @@ cachedir = "./.joblib_cache"
 memory = Memory(cachedir, verbose=0)
 
 NY = pytz.timezone("America/New_York")
-
-
-# Create a calendar
-nyse: NYSEExchangeCalendar = mcal.get_calendar("NYSE", open_time=time(9, 29))
 
 
 # prevent errors in Jupyter/Ipython; otherwise use enhanced event loop
@@ -231,8 +224,9 @@ def async_polygon_aggs(
             ignore_index=True,
         )
 
+        nyse: NYSEExchangeCalendar = mcal.get_calendar("NYSE")
         schedule = nyse.schedule(start, end)
-        valid_minutes = mcal.date_range(schedule, "1min")
+        valid_minutes = mcal.date_range(schedule, "1min") - timedelta(minutes=1)
 
         if df is None or df.empty:
             print(f"No results for {symbol}.")
@@ -265,9 +259,8 @@ def async_polygon_aggs(
             )
             df = df[~df.index.duplicated()]  # type: ignore
 
-            df = df.reindex(valid_minutes)  # type: ignore
-
-            print("Reindexing...")
+        print("Reindexing...")
+        df = df.reindex(valid_minutes)  # type: ignore
 
         print("After Reindexing by trading calender:")
 
@@ -284,6 +277,9 @@ def async_polygon_aggs(
         if pct_minutes_not_null < paucity_threshold:
             print(f"{symbol} below threshold: {paucity_threshold}")
             return None
+
+        if pct_minutes_not_null > 1.01:
+            raise ValueError(f"{pct_minutes_not_null=} Riley messed up, yell at him")
 
         # Rename polygon json keys to canonical pandas headers
         df = df.rename(
