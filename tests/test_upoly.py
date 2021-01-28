@@ -85,4 +85,4 @@ async def test_min_route(polymock: MockRouter, produce_interface: Dict[str, Any]
 
 
 def test_version() -> None:
-    assert __version__ == "0.1.18"
+    assert __version__ == "0.1.19"
