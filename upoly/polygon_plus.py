@@ -55,18 +55,18 @@ async def _produce_polygon_aggs(
     """Produce a chunk of polygon results and put in asyncio que.
 
     Args:
-        :param:polygon_id (str): Polygon API key
-        :param:client (httpx.AsyncClient): An open http2 client session
-        :param:queue (asyncio.Queue): special collection to put results asynchonously
-        :param:symbol (str): the stock symbol
-        :param:timespan (str): unit of time, "minute", "hour", "day"
-        :param:interval (int): how many units of timespan to agg bars by
-        :param:_from (datetime): start of time interval
-        :param:to (datetime): end of time interval
-        :param:unadjusted (bool, optional): Whether results should be adjusted
-        :param:for splits and dividends. Defaults to False.
-        :param:error_threshold (int): max number of agg bars in each request
-        :param:error_threshold (int): how many nanoseconds requests timestamps
+        :param: polygon_id (str): Polygon API key
+        :param: client (httpx.AsyncClient): An open http2 client session
+        :param: queue (asyncio.Queue): special collection to put results asynchonously
+        :param: symbol (str): the stock symbol
+        :param: timespan (str): unit of time, "minute", "hour", "day"
+        :param: interval (int): how many units of timespan to agg bars by
+        :param: _from (datetime): start of time interval
+        :param: to (datetime): end of time interval
+        :param: unadjusted (bool, optional): Whether results should be adjusted
+        :param: for splits and dividends. Defaults to False.
+        :param: error_threshold (int): max number of agg bars in each request
+        :param: error_threshold (int): how many nanoseconds requests timestamps
         can be out-of-bounds before considering invalid.  defaults to 1_000_000
         (0.001 seconds)
     """
@@ -226,7 +226,9 @@ def async_polygon_aggs(
 
         nyse: NYSEExchangeCalendar = mcal.get_calendar("NYSE")
         schedule = nyse.schedule(start, end)
-        valid_minutes = mcal.date_range(schedule, "1min") - timedelta(minutes=1)
+        valid_minutes: pd.DatetimeIndex = mcal.date_range(schedule, "1min") - timedelta(
+            minutes=1
+        )
 
         if df is None or df.empty:
             print(f"No results for {symbol}.")
@@ -242,9 +244,9 @@ def async_polygon_aggs(
             f"{expected_sessions=}\t{actual_sessions=}\tpct_diff: {(actual_sessions/expected_sessions)-1.:+.2%}"
         )
 
-        expected_minutes = valid_minutes.shape[0]
+        expected_minutes = valid_minutes.to_frame().count()
 
-        actual_minutes = df.shape[0]
+        actual_minutes = df.count()
 
         print(
             f"{expected_minutes=}\t{actual_minutes=}\tpct_diff: {(actual_minutes/expected_minutes)-1.:+.2%}"
@@ -265,7 +267,7 @@ def async_polygon_aggs(
         print("After Reindexing by trading calender:")
 
         actual_sessions = df.groupby(df.index.date).count().shape[0]  # type:ignore
-        actual_minutes = df.shape[0]
+        actual_minutes = df.count()
 
         print(f"{expected_sessions = }\t{actual_sessions = }")
         print(f"{expected_minutes = }\t{actual_minutes = }")
