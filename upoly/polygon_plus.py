@@ -198,7 +198,7 @@ def async_polygon_aggs(
         periods = ceil((end - start).days / max_chunk_days)
 
         intervals: Tuple[pd.Timestamp, pd.Timestamp] = pd.interval_range(
-            start=start, end=end, periods=periods
+            start=start, end=end + timedelta(days=1), periods=periods
         ).to_tuples()
 
         print(f"Retrieving {periods} mini-batches for {symbol}...")
