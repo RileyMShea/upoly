@@ -8,7 +8,7 @@ import os
 from datetime import datetime, timedelta
 from math import ceil
 from time import perf_counter
-from typing import Iterator, List, Literal, Optional, Tuple
+from typing import Any, Callable, Iterator, List, Literal, Optional, Tuple, TypeVar, cast
 
 import httpx
 import nest_asyncio
@@ -24,7 +24,9 @@ from .constants import STAMP_TO_MICRO_FACTOR
 from .models import PolyAggResponse
 from .settings import unwrap
 
-cachedir = "./.joblib_cache"
+dirname = os.path.dirname(__file__)
+cachedir = os.path.join(dirname, ".joblib_cache")
+
 memory = Memory(cachedir, verbose=0)
 
 NY = pytz.timezone("America/New_York")
@@ -36,6 +38,17 @@ try:
     nest_asyncio.apply()
 except NameError:
     uvloop.install()
+
+F = TypeVar("F", bound=Callable[..., Any])
+
+
+def typed_cache(
+    fn: F,
+) -> F:
+    def wrapper(*args, **kwargs):
+        return memory.cache(fn)(*args, **kwargs)
+
+    return cast(F, wrapper)
 
 
 async def _produce_polygon_aggs(
@@ -244,9 +257,9 @@ def async_polygon_aggs(
             f"{expected_sessions=}\t{actual_sessions=}\tpct_diff: {(actual_sessions/expected_sessions)-1.:+.2%}"
         )
 
-        expected_minutes = valid_minutes.to_frame().count()
+        expected_minutes = valid_minutes.shape[0]
 
-        actual_minutes = df.count()
+        actual_minutes = df.loc[~df.isnull().all(axis="columns")].shape[0]
 
         print(
             f"{expected_minutes=}\t{actual_minutes=}\tpct_diff: {(actual_minutes/expected_minutes)-1.:+.2%}"
@@ -267,7 +280,7 @@ def async_polygon_aggs(
         print("After Reindexing by trading calender:")
 
         actual_sessions = df.groupby(df.index.date).count().shape[0]  # type:ignore
-        actual_minutes = df.count()
+        actual_minutes = df.loc[~df.isnull().all(axis="columns")].shape[0]
 
         print(f"{expected_sessions = }\t{actual_sessions = }")
         print(f"{expected_minutes = }\t{actual_minutes = }")
