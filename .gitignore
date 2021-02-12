@@ -142,8 +142,9 @@ cython_debug/
 joblib_cache/
 .joblib_cache/
 
-.vscode/
-.vscode/settings.json
+.vscode/*
+!.vscode/settings.json
+!.vscode/launch.json
 
 *.parquet
 *.pkl
