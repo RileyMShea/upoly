@@ -155,9 +155,7 @@ def async_polygon_aggs(
     interval: int = 1,
     unadjusted: bool = False,
     max_chunk_days: int = 100,
-    debug_mode: bool = False,
     paucity_threshold: float = 0.70,
-    df_dtype: Literal["np.float64", "np.float32"] = "np.float64",
 ) -> Optional[pd.DataFrame]:
     """Produce calendar formatted pandas dataframe for a stock.
 
@@ -171,8 +169,6 @@ def async_polygon_aggs(
         :param: max_chunk_days (int, optional): Limit amount of days to retrieve per request to prevent truncated results. Defaults to 100.
         :param: paucity_threshold (float): Minimum ratio of response_records-to-expected_records
         before triggering an exception.  Defaults to 0.7
-        :param: df_dtype: (Literal["np.float64", "np.float32"]): set the
-        dtype for ,
 
 
     Returns:
@@ -249,13 +245,13 @@ def async_polygon_aggs(
     )
 
     if (duplicated_indice_count := df.index.duplicated().sum()) > 0:
-        print("\n")
-        print(f"Found the following duplicated indexes:")
-        print(df[df.index.duplicated(keep=False)].sort_index()["vw"])  # type: ignore
+        # print("\n")
+        # print(f"Found the following duplicated indexes:")
+        # print(df[df.index.duplicated(keep=False)].sort_index()["vw"])  # type: ignore
         print(f"Dropping {duplicated_indice_count} row(s) w/ duplicate Datetimeindex ")
         df = df[~df.index.duplicated()]  # type: ignore
 
-    print("Reindexing...")
+    # print("Reindexing...")
     df = df.reindex(valid_minutes)  # type: ignore
 
     print("After Reindexing by trading calender:")
@@ -292,12 +288,9 @@ def async_polygon_aggs(
     )
     # Converting UTC-aware timestamps to NY-naive
     if isinstance(df.index, pd.DatetimeIndex):
-        df.index = df.index.tz_convert(NY).tz_localize(None)
+        df.index = df.index.tz_convert(NY).tz_localize(None)  # type:ignore
     else:
         raise TypeError
-
-    # Force columns to specific type
-    # df = df.astype(np.float64)
 
     # Reorder columns so that ohlcv comes first
     df = df[["open", "high", "low", "close", "volume", "volwavg", "trades"]]

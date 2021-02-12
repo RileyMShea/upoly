@@ -3,7 +3,6 @@ import os
 from datetime import datetime
 
 import httpx
-import numba
 import numpy as np
 import pandas as pd
 from cytoolz import map

@@ -18,6 +18,10 @@ from upoly.models import PolyAggResponse
 from upoly.polygon_plus import _dispatch_consume_polygon, _produce_polygon_aggs
 
 
+def test_version() -> None:
+    assert __version__ == "0.1.22"
+
+
 @pytest.fixture
 def polymock(first_file: PolyAggResponse) -> Iterator[MockRouter]:
     """
@@ -82,7 +86,3 @@ async def test_min_route(polymock: MockRouter, produce_interface: Dict[str, Any]
         x = await _produce_polygon_aggs(**produce_interface)
         assert polymock["polymin"].called == True
         # assert x is not None
-
-
-def test_version() -> None:
-    assert __version__ == "0.1.21"
