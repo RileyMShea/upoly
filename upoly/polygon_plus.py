@@ -145,6 +145,7 @@ def combine_chunks(chunks: List[bytes]) -> Iterator[PolyAggResponse]:
         yield orjson.loads(chunk)
 
 
+@typed_cache
 def async_polygon_aggs(
     symbol: str,
     start: pd.Timestamp,
@@ -187,176 +188,129 @@ def async_polygon_aggs(
     >>> df = async_polygon_aggs("AAPL", start, end)
     """
 
-    def inner_wrapper(
-        symbol: str,
-        start: pd.Timestamp,
-        end: pd.Timestamp,
-        /,
-        timespan: Literal["minute", "hour", "day"] = "minute",
-        interval: int = 1,
-        unadjusted: bool = False,
-        max_chunk_days: int = 100,
-        debug_mode: bool = False,
-        paucity_threshold: float = 0.70,
-        df_dtype: Literal["np.float64", "np.float32"] = "np.float64",
-    ) -> Optional[pd.DataFrame]:
-        """This duplicated function of the outer signature exists b/c joblib's
-        implementation of it's memory.cache decorator breaks editor intellisense."""
-
-        if start.tz.zone != "America/New_York" or end.tz.zone != "America/New_York":
-            raise ValueError(
-                "start and end time must be a NYS, timezone-aware, pandas Timestamp"
-            )
-
-        periods = ceil((end - start).days / max_chunk_days)
-
-        intervals: Tuple[pd.Timestamp, pd.Timestamp] = pd.interval_range(
-            start=start, end=end + timedelta(days=1), periods=periods
-        ).to_tuples()
-
-        print(f"Retrieving {periods} mini-batches for {symbol}...")
-
-        network_io_start = perf_counter()
-
-        raw_results = unwrap(
-            asyncio.run(
-                _dispatch_consume_polygon(
-                    intervals, symbol, timespan, interval, unadjusted
-                )
-            )
-        )
-        network_io_stop = perf_counter()
-        print(f"Data retrieved in {network_io_stop-network_io_start:.2f} seconds.")
-        print("Performing Transforms...")
-
-        df: pd.DataFrame = pd.concat(
-            (
-                pd.DataFrame(orjson.loads(result_chunk).get("results", None))
-                for result_chunk in raw_results
-            ),
-            ignore_index=True,
+    if start.tz.zone != "America/New_York" or end.tz.zone != "America/New_York":
+        raise ValueError(
+            "start and end time must be a NYS, timezone-aware, pandas Timestamp"
         )
 
-        nyse: NYSEExchangeCalendar = mcal.get_calendar("NYSE")
-        schedule = nyse.schedule(start, end)
-        valid_minutes: pd.DatetimeIndex = mcal.date_range(schedule, "1min") - timedelta(
-            minutes=1
+    periods = ceil((end - start).days / max_chunk_days)
+
+    intervals: Tuple[pd.Timestamp, pd.Timestamp] = pd.interval_range(
+        start=start, end=end + timedelta(days=1), periods=periods
+    ).to_tuples()
+
+    print(f"Retrieving {periods} mini-batches for {symbol}...")
+
+    network_io_start = perf_counter()
+
+    raw_results = unwrap(
+        asyncio.run(
+            _dispatch_consume_polygon(intervals, symbol, timespan, interval, unadjusted)
         )
-
-        if df is None or df.empty:
-            print(f"No results for {symbol}.")
-            return None
-        df.t = pd.to_datetime(df.t.astype(int), unit="ms", utc=True)
-        df.set_index("t", inplace=True)
-
-        expected_sessions = schedule.shape[0]
-
-        actual_sessions = df.groupby(df.index.date).count().shape[0]  # type:ignore
-
-        print(
-            f"{expected_sessions=}\t{actual_sessions=}\tpct_diff: {(actual_sessions/expected_sessions)-1.:+.2%}"
-        )
-
-        expected_minutes = valid_minutes.shape[0]
-
-        actual_minutes = df.loc[~df.isnull().all(axis="columns")].shape[0]
-
-        print(
-            f"{expected_minutes=}\t{actual_minutes=}\tpct_diff: {(actual_minutes/expected_minutes)-1.:+.2%}"
-        )
-
-        if (duplicated_indice_count := df.index.duplicated().sum()) > 0:
-            print("\n")
-            print(f"Found the following duplicated indexes:")
-            print(df[df.index.duplicated(keep=False)].sort_index()["vw"])  # type: ignore
-            print(
-                f"Dropping {duplicated_indice_count} row(s) w/ duplicate Datetimeindex "
-            )
-            df = df[~df.index.duplicated()]  # type: ignore
-
-        print("Reindexing...")
-        df = df.reindex(valid_minutes)  # type: ignore
-
-        print("After Reindexing by trading calender:")
-
-        actual_sessions = df.groupby(df.index.date).count().shape[0]  # type:ignore
-        actual_minutes = df.loc[~df.isnull().all(axis="columns")].shape[0]
-
-        print(f"{expected_sessions = }\t{actual_sessions = }")
-        print(f"{expected_minutes = }\t{actual_minutes = }")
-
-        pct_minutes_not_null = actual_minutes / expected_minutes
-
-        print(f"{pct_minutes_not_null = :.3%}")
-
-        if pct_minutes_not_null < paucity_threshold:
-            print(f"{symbol} below threshold: {paucity_threshold}")
-            return None
-
-        if pct_minutes_not_null > 1.01:
-            raise ValueError(f"{pct_minutes_not_null=} Riley messed up, yell at him")
-
-        # Rename polygon json keys to canonical pandas headers
-        df = df.rename(
-            columns={
-                "v": "volume",
-                "vw": "volwavg",
-                "o": "open",
-                "c": "close",
-                "h": "high",
-                "l": "low",
-                "t": "date",
-                "n": "trades",
-            }
-        )
-        # Converting UTC-aware timestamps to NY-naive
-        if isinstance(df.index, pd.DatetimeIndex):
-            df.index = df.index.tz_convert(NY).tz_localize(None)
-        else:
-            raise TypeError
-
-        # Force columns to specific type
-        # df = df.astype(np.float64)
-
-        # Reorder columns so that ohlcv comes first
-        df = df[["open", "high", "low", "close", "volume", "volwavg", "trades"]]
-        df.index.name = "time"
-
-        first_index = df.index.min()
-        last_index = df.index.max()
-
-        print(f"{first_index = } {last_index = }")
-
-        return df
-
-    if debug_mode:
-        return inner_wrapper(
-            symbol,
-            start,
-            end,
-            timespan,
-            interval,
-            unadjusted,
-            max_chunk_days,
-            debug_mode,
-            paucity_threshold,
-            df_dtype,
-        )
-    wrapped = memory.cache(inner_wrapper)(
-        symbol,
-        start,
-        end,
-        timespan,
-        interval,
-        unadjusted,
-        max_chunk_days,
-        debug_mode,
-        paucity_threshold,
-        df_dtype,
     )
-    if isinstance(wrapped, pd.DataFrame):
-        return wrapped
-    elif wrapped is None:
+    network_io_stop = perf_counter()
+    print(f"Data retrieved in {network_io_stop-network_io_start:.2f} seconds.")
+    print("Performing Transforms...")
+
+    df: pd.DataFrame = pd.concat(
+        (
+            pd.DataFrame(orjson.loads(result_chunk).get("results", None))
+            for result_chunk in raw_results
+        ),
+        ignore_index=True,
+    )
+
+    nyse: NYSEExchangeCalendar = mcal.get_calendar("NYSE")
+    schedule = nyse.schedule(start, end)
+    valid_minutes: pd.DatetimeIndex = mcal.date_range(schedule, "1min") - timedelta(
+        minutes=1
+    )
+
+    if df is None or df.empty:
+        print(f"No results for {symbol}.")
+        return None
+    df.t = pd.to_datetime(df.t.astype(int), unit="ms", utc=True)
+    df.set_index("t", inplace=True)
+
+    expected_sessions = schedule.shape[0]
+
+    actual_sessions = df.groupby(df.index.date).count().shape[0]  # type:ignore
+
+    print(
+        f"{expected_sessions=}\t{actual_sessions=}\tpct_diff: {(actual_sessions/expected_sessions)-1.:+.2%}"
+    )
+
+    expected_minutes = valid_minutes.shape[0]
+
+    actual_minutes = df.loc[~df.isnull().all(axis="columns")].shape[0]
+
+    print(
+        f"{expected_minutes=}\t{actual_minutes=}\tpct_diff: {(actual_minutes/expected_minutes)-1.:+.2%}"
+    )
+
+    if (duplicated_indice_count := df.index.duplicated().sum()) > 0:
+        print("\n")
+        print(f"Found the following duplicated indexes:")
+        print(df[df.index.duplicated(keep=False)].sort_index()["vw"])  # type: ignore
+        print(f"Dropping {duplicated_indice_count} row(s) w/ duplicate Datetimeindex ")
+        df = df[~df.index.duplicated()]  # type: ignore
+
+    print("Reindexing...")
+    df = df.reindex(valid_minutes)  # type: ignore
+
+    print("After Reindexing by trading calender:")
+
+    actual_sessions = df.groupby(df.index.date).count().shape[0]  # type:ignore
+    actual_minutes = df.loc[~df.isnull().all(axis="columns")].shape[0]
+
+    print(f"{expected_sessions = }\t{actual_sessions = }")
+    print(f"{expected_minutes = }\t{actual_minutes = }")
+
+    pct_minutes_not_null = actual_minutes / expected_minutes
+
+    print(f"{pct_minutes_not_null = :.3%}")
+
+    if pct_minutes_not_null < paucity_threshold:
+        print(f"{symbol} below threshold: {paucity_threshold}")
+        return None
+
+    if pct_minutes_not_null > 1.01:
+        raise ValueError(f"{pct_minutes_not_null=} Riley messed up, yell at him")
+
+    # Rename polygon json keys to canonical pandas headers
+    df = df.rename(
+        columns={
+            "v": "volume",
+            "vw": "volwavg",
+            "o": "open",
+            "c": "close",
+            "h": "high",
+            "l": "low",
+            "t": "date",
+            "n": "trades",
+        }
+    )
+    # Converting UTC-aware timestamps to NY-naive
+    if isinstance(df.index, pd.DatetimeIndex):
+        df.index = df.index.tz_convert(NY).tz_localize(None)
+    else:
+        raise TypeError
+
+    # Force columns to specific type
+    # df = df.astype(np.float64)
+
+    # Reorder columns so that ohlcv comes first
+    df = df[["open", "high", "low", "close", "volume", "volwavg", "trades"]]
+    df.index.name = "time"
+
+    first_index = df.index.min()
+    last_index = df.index.max()
+
+    print(f"{first_index = } {last_index = }")
+
+    if isinstance(df, pd.DataFrame):
+        return df
+    elif df is None:
         return None
     else:
-        raise ValueError(f"Expected Dataframe return; Got: {type(wrapped)}")
+        raise ValueError(f"Expected Dataframe return; Got: {type(df)}")

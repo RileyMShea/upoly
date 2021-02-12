@@ -23,6 +23,12 @@ start = pd.Timestamp("2015-06-01", tz=NY)
 end = pd.Timestamp("2020-01-01", tz=NY)
 aapl = async_polygon_aggs("GOOG", start, end, debug_mode=True)
 aapl
+#%%
+# period exceeding stock history
+start = pd.Timestamp("2012-06-01", tz=NY)
+end = pd.Timestamp("2018-01-01", tz=NY)
+shop = async_polygon_aggs("SHOP", start, end, debug_mode=True)
+shop
 #%%  Check holiday close has a 12:59 bar
 aapl.loc["2019-07-03 12"].tail()
 #%%
