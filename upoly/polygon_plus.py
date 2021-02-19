@@ -16,7 +16,8 @@ import orjson
 import pandas as pd
 import pandas_market_calendars as mcal
 import pytz
-import uvloop
+
+# import uvloop
 from joblib import Memory
 from pandas_market_calendars.exchange_calendar_nyse import NYSEExchangeCalendar
 
@@ -37,7 +38,8 @@ try:
     get_ipython()  # type: ignore
     nest_asyncio.apply()
 except NameError:
-    uvloop.install()
+    pass
+    # uvloop.install()
 
 F = TypeVar("F", bound=Callable[..., Any])
 

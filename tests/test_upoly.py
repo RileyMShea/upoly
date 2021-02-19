@@ -19,7 +19,7 @@ from upoly.polygon_plus import _dispatch_consume_polygon, _produce_polygon_aggs
 
 
 def test_version() -> None:
-    assert __version__ == "0.1.22"
+    assert __version__ == "0.1.23"
 
 
 @pytest.fixture
