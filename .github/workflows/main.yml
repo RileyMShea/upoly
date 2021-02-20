@@ -10,6 +10,7 @@ on:
 jobs:
   pre-commit:
     name: Linting
+
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -25,6 +26,7 @@ jobs:
       OS: ${{ matrix.os }}
       PYTHON: '${{ matrix.python-version }}'
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu, windows, macos ]
         python-version: [3.8]
@@ -86,8 +88,8 @@ jobs:
         run: |
           python -m poetry run poetry build
 
-      - name: Publish to PyPI
-        env:
-          POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_TOKEN }}
-        run: |
-          python -m poetry run poetry publish
+      # - name: Publish to PyPI
+      #   env:
+      #     POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_TOKEN }}
+      #   run: |
+      #     python -m poetry run poetry publish
