@@ -1,7 +1,9 @@
 # mypy: allow-untyped-decorators
 import aiohttp
+import numpy as np
 import pandas as pd
 import pytest
+from pandas.testing import assert_frame_equal, assert_index_equal
 
 from upoly import NY, __version__, async_polygon_aggs
 from upoly.constants import MINUTE_PATH, POLYGON_BASE_URL
@@ -10,7 +12,14 @@ from upoly.polygon_plus import _dispatch_consume_polygon, _produce_polygon_aggs
 
 
 def test_version() -> None:
-    assert __version__ == "0.1.24"
+    assert __version__ == "0.1.25"
+
+
+def test_create_dataset_from_polygon():
+    start = pd.Timestamp("2019-01-01", tz=NY)
+    end = pd.Timestamp("2019-02-01", tz=NY)
+    got = async_polygon_aggs("AAPL", start, end)
+    assert isinstance(got, pd.DataFrame)
 
 
 # @pytest.fixture
