@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import sys
 from asyncio.proactor_events import _ProactorBasePipeTransport
 from datetime import datetime, timedelta
 from functools import wraps
@@ -46,6 +47,11 @@ except NameError:
         uvloop.install()
     except:
         pass
+
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(
+        asyncio.WindowsSelectorEventLoopPolicy()  # type:ignore
+    )
 
 F = TypeVar("F", bound=Callable[..., Any])
 
