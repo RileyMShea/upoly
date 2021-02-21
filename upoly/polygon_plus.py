@@ -5,7 +5,9 @@ from __future__ import annotations
 
 import asyncio
 import os
+from asyncio.proactor_events import _ProactorBasePipeTransport
 from datetime import datetime, timedelta
+from functools import wraps
 from math import ceil
 from time import perf_counter
 from typing import Any, Callable, Iterator, List, Literal, Optional, Tuple, TypeVar, cast
@@ -55,6 +57,23 @@ def typed_cache(
         return memory.cache(fn)(*args, **kwargs)
 
     return cast(F, wrapper)
+
+
+def silence_event_loop_closed(func):
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        try:
+            return func(self, *args, **kwargs)
+        except RuntimeError as e:
+            if str(e) != "Event loop is closed":
+                raise
+
+    return wrapper
+
+
+_ProactorBasePipeTransport.__del__ = silence_event_loop_closed(
+    _ProactorBasePipeTransport.__del__
+)
 
 
 async def _produce_polygon_aggs(
@@ -146,6 +165,7 @@ def combine_chunks(chunks: List[bytes]) -> Iterator[PolyAggResponse]:
 
 
 @typed_cache
+@silence_event_loop_closed
 def async_polygon_aggs(
     symbol: str,
     start: pd.Timestamp,
