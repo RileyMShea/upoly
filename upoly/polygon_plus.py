@@ -241,14 +241,14 @@ def async_polygon_aggs(
 
     nyse: NYSEExchangeCalendar = mcal.get_calendar("NYSE")
     schedule = nyse.schedule(start, end)
-    valid_minutes: pd.DatetimeIndex = mcal.date_range(schedule, "1min") - timedelta(
-        minutes=1
+    valid_minutes: pd.DatetimeIndex = mcal.date_range(schedule, "1min") - pd.Timedelta(
+        value=1, unit="T"
     )
 
     if df is None or df.empty:
         print(f"No results for {symbol}.")
         return None
-    df.t = pd.to_datetime(df.t.astype(int), unit="ms", utc=True)
+    df.t = pd.to_datetime(pd.to_numeric(df.t), unit="ms", utc=True)
     df.set_index("t", inplace=True)
 
     expected_sessions = schedule.shape[0]
