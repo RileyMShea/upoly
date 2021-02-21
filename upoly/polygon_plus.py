@@ -10,7 +10,7 @@ from math import ceil
 from time import perf_counter
 from typing import Any, Callable, Iterator, List, Literal, Optional, Tuple, TypeVar, cast
 
-import httpx
+import aiohttp
 import nest_asyncio
 import orjson
 import pandas as pd
@@ -33,13 +33,17 @@ memory = Memory(cachedir, verbose=0)
 NY = pytz.timezone("America/New_York")
 
 
-# prevent errors in Jupyter/Ipython; otherwise use enhanced event loop
+# prevent errors in Jupyter/Ipython; otherwise attempt to use enhanced event loop
 try:
     get_ipython()  # type: ignore
     nest_asyncio.apply()
 except NameError:
-    pass
-    # uvloop.install()
+    try:
+        import uvloop
+
+        uvloop.install()
+    except:
+        pass
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -55,7 +59,7 @@ def typed_cache(
 
 async def _produce_polygon_aggs(
     polygon_id: str,
-    client: httpx.AsyncClient,
+    client: aiohttp.ClientSession,
     queue: asyncio.Queue,  # type:ignore
     symbol: str,
     timespan: Literal["minute", "hour", "day"],
@@ -71,7 +75,7 @@ async def _produce_polygon_aggs(
 
     Args:
         :param: polygon_id (str): Polygon API key
-        :param: client (httpx.AsyncClient): An open http2 client session
+        :param: client (aiohttp.ClientSession): An open http2 client session
         :param: queue (asyncio.Queue): special collection to put results asynchonously
         :param: symbol (str): the stock symbol
         :param: timespan (str): unit of time, "minute", "hour", "day"
@@ -91,17 +95,10 @@ async def _produce_polygon_aggs(
 
     url = f"https://api.polygon.io/v2/aggs/ticker/{symbol}/range/{interval}/{timespan}/{start}/{end}?unadjusted={unadjusted}&sort=asc&limit={response_limit}&apiKey={polygon_id}"
     res = await client.get(url)
-    if res.status_code != 200:
-        ValueError(f"Bad statuscode {res.status_code=};expected 200")
+    if res.status != 200:
+        raise ValueError(f"Bad statuscode {res.status=};expected 200")
 
-    await queue.put(res.content)
-
-    # if debug_mode:
-    #     async with aiofiles.open(
-    #         f"./tests/fixtures/{symbol}-{start}-{end}.json.zip", "wb"
-    #     ) as f:
-    #         await f.write(brotli.compress(orjson.dumps(orjson.loads(res.content))))
-    #     return res.content  # type: ignore
+    await queue.put(await res.json(loads=orjson.loads))
 
 
 async def _dispatch_consume_polygon(
@@ -116,7 +113,8 @@ async def _dispatch_consume_polygon(
 
     POLYGON_KEY_ID = unwrap(os.getenv("POLYGON_KEY_ID"))
 
-    client = httpx.AsyncClient(http2=True)
+    client = aiohttp.ClientSession()
+
     await asyncio.gather(
         *(
             _produce_polygon_aggs(
@@ -133,7 +131,7 @@ async def _dispatch_consume_polygon(
             for _from, to in intervals
         )
     )
-    await client.aclose()
+    await client.close()
     results: List[bytes] = []
     while not queue.empty():
         results.append(await queue.get())
@@ -211,10 +209,7 @@ def async_polygon_aggs(
     print("Performing Transforms...")
 
     df: pd.DataFrame = pd.concat(
-        (
-            pd.DataFrame(orjson.loads(result_chunk).get("results", None))
-            for result_chunk in raw_results
-        ),
+        (pd.DataFrame(result_chunk.get("results", None)) for result_chunk in raw_results),
         ignore_index=True,
     )
 

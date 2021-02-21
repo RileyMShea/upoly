@@ -4,7 +4,6 @@ from typing import Iterator
 import brotli
 import orjson
 import pytest
-from httpx import Response
 
 from upoly.models import PolyAggResponse
 

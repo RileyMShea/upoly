@@ -3,14 +3,13 @@ import dask.dataframe as dd
 import numpy as np
 import pandas as pd
 from dask.dataframe.core import DataFrame as DaskFrame
-from numpy.core.fromnumeric import partition
 
 from upoly import NY, async_polygon_aggs
 
 #%%
 # short time period(1day)
 start = pd.Timestamp("2020-01-02", tz=NY)
-end = pd.Timestamp("2020-01-03", tz=NY)
+end = pd.Timestamp("2020-01-05", tz=NY)
 coup = async_polygon_aggs("COUP", start, end)
 coup
 #%%
