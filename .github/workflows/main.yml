@@ -70,7 +70,9 @@ jobs:
         shell: bash
         run: |
           python -m poetry run python -m pytest --cov=./ --cov-report=xml
+
       - name: Upload coverage to Codecov
+        if: matrix.os == 'ubuntu'
         uses: codecov/codecov-action@v1
         with:
           # token: ${{ secrets.CODECOV_TOKEN }}
@@ -84,10 +86,12 @@ jobs:
           verbose: true
 
       - name: Build project for distribution
+        if: matrix.os == 'ubuntu'
         run: |
           python -m poetry run poetry build
 
       - name: Publish to PyPI
+        if: matrix.os == 'ubuntu'
         env:
           POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_TOKEN }}
         run: |
