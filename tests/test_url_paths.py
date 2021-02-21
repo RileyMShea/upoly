@@ -1,7 +1,6 @@
 from urllib.parse import ParseResult, urlencode, urlparse
 
 import pandas as pd
-from cytoolz import map
 
 from upoly.utility import str_to_path, trades_path
 

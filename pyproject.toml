@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "upoly"
-version = "0.1.29"
+version = "0.1.30"
 description = "High performance asyncio REST client for polygon.io"
 authors = ["Riley <rileymshea@gmail.com>"]
 license = "AGPL"
@@ -36,6 +36,7 @@ aiohttp = "^3.7.3"
 aiodns = "^2.0.0"
 Brotli = "^1.0.9"
 cchardet = "^2.1.7"
+setuptools = "^53.0.0"
 
 [tool.poetry.dev-dependencies]
 aiofiles = "^0.6.0"

@@ -12,7 +12,7 @@ from upoly.polygon_plus import _dispatch_consume_polygon, _produce_polygon_aggs
 
 
 def test_version() -> None:
-    assert __version__ == "0.1.29"
+    assert __version__ == "0.1.30"
 
 
 def test_create_dataset_from_polygon():

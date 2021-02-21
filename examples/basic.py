@@ -1,8 +1,6 @@
 #%%
-import dask.dataframe as dd
 import numpy as np
 import pandas as pd
-from dask.dataframe.core import DataFrame as DaskFrame
 
 from upoly import NY, async_polygon_aggs
 

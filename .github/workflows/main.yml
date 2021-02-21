@@ -69,7 +69,7 @@ jobs:
           POLYGON_KEY_ID: ${{secrets.POLYGON_KEY_ID}}
         shell: bash
         run: |
-          python -m poetry run python -m pytest --cov=./ --cov-report=xml
+          python -m poetry run python -m pytest --cov=./upoly --cov-report=xml
 
       - name: Upload coverage to Codecov
         if: matrix.os == 'ubuntu'
