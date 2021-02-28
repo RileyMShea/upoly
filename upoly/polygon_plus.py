@@ -4,6 +4,7 @@ with the polygon api asynchonously.
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import sys
 from asyncio.proactor_events import _ProactorBasePipeTransport
@@ -19,6 +20,7 @@ import orjson
 import pandas as pd
 import pandas_market_calendars as mcal
 import pytz
+from dotenv import find_dotenv, load_dotenv
 
 # import uvloop
 from joblib import Memory
@@ -34,6 +36,14 @@ cachedir = os.path.join(dirname, ".joblib_cache")
 memory = Memory(cachedir, verbose=0)
 
 NY = pytz.timezone("America/New_York")
+
+try:
+    load_dotenv(find_dotenv(raise_error_if_not_found=True))
+except IOError:
+    try:
+        load_dotenv(find_dotenv(raise_error_if_not_found=True, usecwd=True))
+    except IOError:
+        logging.warning("missing .env file")
 
 
 # prevent errors in Jupyter/Ipython; otherwise attempt to use enhanced event loop
@@ -60,7 +70,11 @@ def typed_cache(
     fn: F,
 ) -> F:
     def wrapper(*args, **kwargs):
-        return memory.cache(fn)(*args, **kwargs)
+        is_debug = os.environ.get("UPOLY_DEBUG", None)
+        if is_debug:
+            return fn(*args, **kwargs)
+        else:
+            return memory.cache(fn)(*args, **kwargs)
 
     return cast(F, wrapper)
 
@@ -136,33 +150,36 @@ async def _dispatch_consume_polygon(
 
     queue: asyncio.Queue[bytes] = asyncio.Queue()
 
-    POLYGON_KEY_ID = unwrap(os.getenv("POLYGON_KEY_ID"))
+    try:
+        POLYGON_KEY_ID = unwrap(os.getenv("POLYGON_KEY_ID"))
+    except ValueError:
+        raise ValueError(f"Missing POLYGON_KEY_ID, please load with from python-dotenv")
 
     client = aiohttp.ClientSession()
+    async with client:
 
-    await asyncio.gather(
-        *(
-            _produce_polygon_aggs(
-                POLYGON_KEY_ID,
-                client,
-                queue,
-                symbol,
-                timespan,
-                interval,
-                _from,
-                to,
-                unadjusted,
+        await asyncio.gather(
+            *(
+                _produce_polygon_aggs(
+                    POLYGON_KEY_ID,
+                    client,
+                    queue,
+                    symbol,
+                    timespan,
+                    interval,
+                    _from,
+                    to,
+                    unadjusted,
+                )
+                for _from, to in intervals
             )
-            for _from, to in intervals
         )
-    )
-    await client.close()
-    results: List[bytes] = []
-    while not queue.empty():
-        results.append(await queue.get())
-        queue.task_done()
+        results: List[bytes] = []
+        while not queue.empty():
+            results.append(await queue.get())
+            queue.task_done()
 
-    return results
+        return results
 
 
 def combine_chunks(chunks: List[bytes]) -> Iterator[PolyAggResponse]:
